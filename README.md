@@ -4,6 +4,9 @@
 
 OpenWard transforms a standard WireGuard VPN into a highly secure, stateful, and segmented Zero Trust enterprise network. By combining native WireGuard cryptography with strict `iptables` rules and an intuitive management dashboard, OpenWard isolates user traffic, prevents lateral malware movement, and allows you to manage network access seamlessly.
 
+<img width="1806" height="865" alt="image" src="https://github.com/user-attachments/assets/73fd02ec-a6c7-4e7e-ae6f-6b8296a67df3" />
+<img width="1768" height="759" alt="image" src="https://github.com/user-attachments/assets/62b57a9a-cd2e-4169-9b31-208f4514c3f3" />
+
 ---
 
 ## Overview
