@@ -1,4 +1,4 @@
-# 🖥️ OpenWard Frontend (Enterprise Dashboard)
+# 🖥️ OpenWard Frontend
 
 The OpenWard Frontend is a sleek, modern, and highly responsive Next.js web application that serves as the command center for your Zero Trust network. 
 
