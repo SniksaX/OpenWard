@@ -45,7 +45,7 @@ FRONTEND_URL=http://localhost:3000
 NODE_ENV=development
 
 # SSH Connection to the WireGuard Gateway
-OVH_INTERNAL_IP=192.168.1.100       # The IP address of your WireGuard server
+PUBLIC_SERVER_INTERNAL_IP=192.168.1.100       # The IP address of your WireGuard server
 SSH_PORT=22                         # SSH Port
 SSH_USER=ubuntu                     # SSH Username
 SSH_PRIVATE_KEY_PATH=/root/.ssh/id_ed25519 # Path to the SSH private key
