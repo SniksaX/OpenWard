@@ -6,7 +6,7 @@ export const config = {
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
     nodeEnv: process.env.NODE_ENV || 'development',
     ssh: {
-        host: process.env.OVH_INTERNAL_IP || '',
+        host: process.env.PUBLIC_SERVER_INTERNAL_IP || '',
         port: parseInt(process.env.SSH_PORT || '22', 10),
         user: process.env.SSH_USER || '',
         privateKeyPath: process.env.SSH_PRIVATE_KEY_PATH || ''
