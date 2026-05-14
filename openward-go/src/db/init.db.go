@@ -24,6 +24,7 @@ func InitDB() (*AppDB, error) {
 	}
 
 	conn.Exec("PRAGMA journal_mode=WAL")
+	conn.Exec("PRAGMA foreign_keys=ON")
 
 	appDB := &AppDB{
 		SQL:   conn,

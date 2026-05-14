@@ -27,3 +27,15 @@ func (u *UsersRepo) InsertUser(req types.UserCred) error {
 	_, err := u.db.Exec(query, req.Username, req.Email, req.Password)
 	return err
 }
+
+func (u *UsersRepo) GetUserByEmail(email string) (*types.UserCred, error) {
+	query := `SELECT id, username, email, password_hash FROM users WHERE email = ?`
+
+	var user types.UserCred
+	err := u.db.QueryRow(query, email).Scan(&user.ID, &user.Username, &user.Email, &user.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

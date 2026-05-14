@@ -24,6 +24,7 @@ const (
 type Peer struct {
 	ID            int         `json:"id"`
 	Name          string      `json:"name"`
+	UserID        int         `json:"user_id"`
 	IPAddress     string      `json:"ip_address"`
 	PublicKey     string      `json:"public_key"`
 	Status        string      `json:"status"`
@@ -51,6 +52,7 @@ type ConfigurePeer struct {
 
 type CreatePeer struct {
 	Name        string      `json:"name"`
+	UserID      int         `json:"user_id"`
 	Passphrase  string      `json:"passphrase"`
 	UseAdguard  bool        `json:"use_adguard"`
 	FullTunnel  bool        `json:"full_tunnel"`

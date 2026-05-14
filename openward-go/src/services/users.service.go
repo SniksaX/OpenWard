@@ -7,6 +7,7 @@ import (
 
 	"openward/src/db"
 	"openward/src/types"
+	"openward/src/utils"
 )
 
 func CreateUser(req types.CreateUserCred, userRepo *db.UsersRepo) error {
@@ -37,4 +38,27 @@ func CreateUser(req types.CreateUserCred, userRepo *db.UsersRepo) error {
 	}
 
 	return nil
+}
+
+func AuthenticateUser(req types.GetUserCred, userRepo *db.UsersRepo) (string, error) {
+	if req.Email == "" || req.Password == "" {
+		return "", errors.New("email and password cannot be empty")
+	}
+
+	user, err := userRepo.GetUserByEmail(req.Email)
+	if err != nil {
+		return "", errors.New("invalid email or password")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+	if err != nil {
+		return "", errors.New("invalid email or password")
+	}
+
+	token, err := utils.GenerateToken(user.ID, user.Username)
+	if err != nil {
+		return "", errors.New("failed to generate authentication token")
+	}
+
+	return token, nil
 }
