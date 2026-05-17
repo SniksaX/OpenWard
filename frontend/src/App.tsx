@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import RoutingMatrixView from './components/RoutingMatrixView';
 import TelemetryView from './components/TelemetryView';
+import CreatePeerModal from './components/CreatePeerModal';
 import { api } from './services/api';
 
 function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
@@ -145,6 +146,7 @@ export default function App() {
   const [selectedPeerId, setSelectedPeerId] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [view, setView] = useState<'MATRIX' | 'TELEMETRY'>('MATRIX');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const selectedPeer = peers.find(p => p.id === selectedPeerId) || peers[0] || null;
 
@@ -166,15 +168,71 @@ export default function App() {
     setPeers([]);
   };
 
+  const getUserIdFromToken = () => {
+    if (!token) return 1;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.user_id || 1;
+    } catch (e) {
+      return 1;
+    }
+  };
+
+  const handleCreatePeer = async (peerData: any) => {
+    try {
+      // 1. Send data to backend
+      const res = await api.createPeer({
+        ...peerData,
+        user_id: getUserIdFromToken(),
+      });
+
+      // 2. Fetch fresh peers immediately
+      const peersRes = await api.getPeers();
+      const rawPeers = Array.isArray(peersRes?.peers) ? peersRes.peers : (Array.isArray(peersRes) ? peersRes : []);
+      
+      const mappedPeers = rawPeers.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        ip: p.ip_address,
+        pubKey: p.public_key || '',
+        role: p.network_role,
+        device: p.device_type,
+        rx: p.transfer_rx || 0,
+        tx: p.transfer_tx || 0,
+        lastSeen: p.last_handshake === 0 ? 'NEVER' : 'ACTIVE',
+        endpoint: 'AWAITING_CONNECTION',
+        handshake: p.last_handshake || 0,
+        latency: '0ms'
+      }));
+
+      setPeers(mappedPeers);
+
+      // 3. Trigger local download of the generated config file
+      if (res.client_config) {
+        const blob = new Blob([res.client_config], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${peerData.name.replace(/\s+/g, '_')}_wg0.conf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err: any) {
+      console.error("Create Peer Error:", err);
+      throw new Error(err.message || "Failed to create peer");
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
 
-
-api.getPeers()
+    api.getPeers()
       .then((data) => {
         const rawPeers = Array.isArray(data?.peers) ? data.peers : (Array.isArray(data) ? data :[]);
         
-        // Map backend snake_case fields to frontend expected fields
         const mappedPeers = rawPeers.map((p: any) => ({
           id: p.id,
           name: p.name,
@@ -237,7 +295,6 @@ api.getPeers()
 
   return (
     <div className="min-h-screen grid-overlay selection:bg-neon-mint selection:text-black">
-      {/* Background Subtle Gradient */}
       <div className="fixed inset-0 pointer-events-none bg-gradient-to-tr from-cyber-bg via-transparent to-neon-mint/5 opacity-50" />
 
       <div className="relative flex flex-col h-screen">
@@ -278,7 +335,6 @@ api.getPeers()
           {/* Sidebar */}
           <aside className="w-64 border-r border-cyber-border flex flex-col bg-cyber-bg/40 backdrop-blur-sm">
             <div className="p-6 space-y-8">
-              {/* Modules section */}
               <section>
                 <div className="text-[10px] text-slate-500 mb-4 tracking-[0.2em] font-bold">MODULES</div>
                 <nav className="space-y-1">
@@ -304,7 +360,6 @@ api.getPeers()
                 </nav>
               </section>
 
-              {/* Network Environment section */}
               <section>
                 <div className="text-[10px] text-slate-500 mb-4 tracking-[0.2em] font-bold">NETWORK ENVIRONMENT</div>
                 <div className="space-y-4">
@@ -350,7 +405,7 @@ api.getPeers()
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto bg-black/20 flex flex-col">
+          <main className="flex-1 overflow-y-auto bg-black/20 flex flex-col relative">
             <AnimatePresence mode="wait">
               {view === 'MATRIX' ? (
                 <RoutingMatrixView
@@ -368,6 +423,7 @@ api.getPeers()
                     setPeers(current => current.filter(p => p.id !== id));
                     if (selectedPeerId === id) setSelectedPeerId('');
                   }}
+                  onOpenCreate={() => setIsCreateModalOpen(true)}
                 />
               ) : (
                 selectedPeer && <TelemetryView
@@ -379,11 +435,18 @@ api.getPeers()
                 />
               )}
             </AnimatePresence>
+
+            {/* Create Peer Modal */}
+            <CreatePeerModal
+              isOpen={isCreateModalOpen}
+              onClose={() => setIsCreateModalOpen(false)}
+              onSubmit={handleCreatePeer}
+            />
           </main>
         </div>
 
-        {/* Footer / Status Bar */}
-        <footer className="h-8 border-t border-cyber-border bg-cyber-bg flex items-center justify-between px-4 text-[9px] text-slate-600 tracking-widest font-bold">
+        {/* Footer */}
+        <footer className="h-8 border-t border-cyber-border bg-cyber-bg flex items-center justify-between px-4 text-[9px] text-slate-600 tracking-widest font-bold z-10">
           <div className="flex items-center gap-6">
             <span className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-neon-mint/30" />

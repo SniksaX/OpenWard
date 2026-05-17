@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Activity,
@@ -34,20 +34,32 @@ interface TelemetryViewProps {
 export default function TelemetryView({ peer, onBack, onCopy, isCopied }: TelemetryViewProps) {
   const [graphData, setGraphData] = useState<any[]>([]);
 
+  const prevStats = useRef({ rx: 0, tx: 0, time: Date.now() });
+
   useEffect(() => {
     if (!peer) return;
     setGraphData(prev => {
-      const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      const now = Date.now();
+      const timeDiff = (now - prevStats.current.time) / 1000; // seconds between ticks
+      if (timeDiff <= 0) return prev;
 
-      // Parse float handles strings like '1.4GB' (returns 1.4) or raw numbers
-      let rxVal = parseFloat(peer.rx);
-      let txVal = parseFloat(peer.tx);
+      let currentRx = parseFloat(peer.rx) || 0;
+      let currentTx = parseFloat(peer.tx) || 0;
 
-      if (isNaN(rxVal)) rxVal = 0;
-      if (isNaN(txVal)) txVal = 0;
+      // Calculate bytes per second! (Current Total - Previous Total) / Seconds
+      let rxSpeedBytes = Math.max(0, (currentRx - prevStats.current.rx) / timeDiff);
+      let txSpeedBytes = Math.max(0, (currentTx - prevStats.current.tx) / timeDiff);
 
-      const newData = [...prev, { time: timeStr, rx: rxVal, tx: txVal }];
+      // Convert to Megabytes per second (MB/s)
+      let rxMBps = Number((rxSpeedBytes / 1048576).toFixed(2));
+      let txMBps = Number((txSpeedBytes / 1048576).toFixed(2));
+
+      // Save current as previous for the next tick
+      prevStats.current = { rx: currentRx, tx: currentTx, time: now };
+
+      const timeStr = `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}:${new Date().getSeconds().toString().padStart(2, '0')}`;
+
+      const newData = [...prev, { time: timeStr, rx: rxMBps, tx: txMBps }];
       if (newData.length > 30) {
         return newData.slice(newData.length - 30);
       }
@@ -245,7 +257,22 @@ export default function TelemetryView({ peer, onBack, onCopy, isCopied }: Teleme
             </div>
           </div>
           <div className="p-6 grid grid-cols-2 gap-4 h-full">
-            <button className="border border-neon-cyan/50 text-neon-cyan font-black text-[10px] py-3 rounded-sm hover:bg-neon-cyan hover:text-black transition-all flex flex-col items-center justify-center gap-2 tracking-tighter">
+            <button 
+              onClick={async () => {
+                  try {
+                      const res = await api.getPeerConfig(peer.pubKey);
+                      const blob = new Blob([res.config], { type: 'text/plain' });
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${peer.name.replace(/\s+/g, '_')}_wg0.conf`;
+                      a.click();
+                  } catch (err) {
+                      alert("Failed to download config!");
+                  }
+              }}
+              className="border border-neon-cyan/50 text-neon-cyan font-black text-[10px] py-3 rounded-sm hover:bg-neon-cyan hover:text-black transition-all flex flex-col items-center justify-center gap-2 tracking-tighter"
+            >
               <Download className="w-4 h-4" />
               [↓] EXPORT_WG0.CONF
             </button>
@@ -257,7 +284,20 @@ export default function TelemetryView({ peer, onBack, onCopy, isCopied }: Teleme
               <Power className="w-4 h-4" />
               [X] FORCE_DISCONNECT
             </button>
-            <button className="col-span-2 bg-red-950/40 border border-red-500/50 text-red-500 font-black text-[10px] py-4 rounded-sm hover:bg-red-600 hover:text-black transition-all flex items-center justify-center gap-2 tracking-tighter">
+            <button 
+              onClick={async () => {
+                  if (window.confirm("CRITICAL: Are you sure you want to permanently revoke this peer?")) {
+                      try {
+                          await api.revokePeer(peer.pubKey);
+                          onBack();
+                          window.location.reload();
+                      } catch (err) {
+                          alert("Failed to revoke peer.");
+                      }
+                  }
+              }}
+              className="col-span-2 bg-red-950/40 border border-red-500/50 text-red-500 font-black text-[10px] py-4 rounded-sm hover:bg-red-600 hover:text-black transition-all flex items-center justify-center gap-2 tracking-tighter"
+            >
               <Skull className="w-4 h-4" />
               [!!!] PERMANENT_REVOCATION_SEQUENCE
             </button>

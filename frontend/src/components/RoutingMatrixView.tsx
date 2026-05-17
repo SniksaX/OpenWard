@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Search,
   LayoutDashboard,
@@ -9,7 +9,6 @@ import {
   Check,
   AlertTriangle
 } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
 import { api } from '../services/api';
 
 interface RoutingMatrixViewProps {
@@ -20,6 +19,7 @@ interface RoutingMatrixViewProps {
   onCopy: () => void;
   isCopied: boolean;
   onRevokePeer?: (id: string) => void;
+  onOpenCreate: () => void;
 }
 
 export default function RoutingMatrixView({
@@ -29,7 +29,8 @@ export default function RoutingMatrixView({
   onNavigateToTelemetry,
   onCopy,
   isCopied,
-  onRevokePeer
+  onRevokePeer,
+  onOpenCreate
 }: RoutingMatrixViewProps) {
   const selectedPeer = peers.find(p => p.id === selectedPeerId) || peers[0];
 
@@ -71,6 +72,16 @@ export default function RoutingMatrixView({
               <option value="ID">ID</option>
               <option value="LATENCY">LATENCY</option>
             </select>
+          </div>
+
+          {/* New Deploy Button Here */}
+          <div className="pl-4 border-l border-cyber-border ml-2">
+            <button 
+              onClick={onOpenCreate}
+              className="bg-neon-mint/10 border border-neon-mint/40 text-neon-mint px-4 py-1.5 text-[10px] font-black tracking-widest hover:bg-neon-mint hover:text-black transition-colors rounded-sm"
+            >
+              [+] DEPLOY_NEW_PEER
+            </button>
           </div>
         </div>
       </div>
@@ -139,10 +150,10 @@ export default function RoutingMatrixView({
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col gap-1">
-                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-sm w-fit font-bold border border-slate-700">
+                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-sm w-fit font-bold border border-slate-700 uppercase">
                           {peer.role}
                         </span>
-                        <span className="text-[9px] bg-cyan-950/40 text-neon-cyan px-1.5 py-0.5 rounded-sm w-fit font-bold border border-neon-cyan/20">
+                        <span className="text-[9px] bg-cyan-950/40 text-neon-cyan px-1.5 py-0.5 rounded-sm w-fit font-bold border border-neon-cyan/20 uppercase">
                           {peer.device}
                         </span>
                       </div>
@@ -287,11 +298,15 @@ export default function RoutingMatrixView({
                 <div className="space-y-2 border-t border-cyber-border pt-4">
                   <div className="flex justify-between items-center text-[10px]">
                     <span className="text-slate-500 font-bold uppercase">TOTAL_RX</span>
-                    <span className="text-neon-cyan font-black tabular-nums tracking-widest">1,420,555 BYTES</span>
+                    <span className="text-neon-cyan font-black tabular-nums tracking-widest">
+                      {(selectedPeer.rx / 1048576).toFixed(2)} MB
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-[10px]">
                     <span className="text-slate-500 font-bold uppercase">TOTAL_TX</span>
-                    <span className="text-orange-500 font-black tabular-nums tracking-widest">840,112 BYTES</span>
+                    <span className="text-orange-500 font-black tabular-nums tracking-widest">
+                      {(selectedPeer.tx / 1048576).toFixed(2)} MB
+                    </span>
                   </div>
                 </div>
               </div>

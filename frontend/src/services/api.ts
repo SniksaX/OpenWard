@@ -43,9 +43,28 @@ export const api = {
             method: 'GET',
         });
     },
+    getPeerConfig: async (publicKey: string) => {
+        return fetchWrapper(`/api/peers/${encodeURIComponent(publicKey)}/config`, {
+            method: 'GET',
+        });
+    },
     revokePeer: async (publicKey: string) => {
         return fetchWrapper(`/api/peers/${encodeURIComponent(publicKey)}`, {
             method: 'DELETE',
+        });
+    },
+    createPeer: async (data: {
+        name: string;
+        user_id: number;
+        device_type: string;
+        network_role: string;
+        use_adguard: boolean;
+        full_tunnel: boolean;
+        passphrase?: string;
+    }) => {
+        return fetchWrapper('/api/createPeer', {
+            method: 'POST',
+            body: JSON.stringify(data),
         });
     }
 };
