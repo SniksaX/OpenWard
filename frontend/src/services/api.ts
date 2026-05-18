@@ -1,3 +1,5 @@
+import { CreatePeerPayload } from '../types';
+
 export const API_URL = import.meta.env.VITE_API_URL || '';
 
 async function fetchWrapper(endpoint: string, options: RequestInit = {}) {
@@ -53,18 +55,10 @@ export const api = {
             method: 'DELETE',
         });
     },
-    createPeer: async (data: {
-        name: string;
-        user_id: number;
-        device_type: string;
-        network_role: string;
-        use_adguard: boolean;
-        full_tunnel: boolean;
-        passphrase?: string;
-    }) => {
+    createPeer: async (data: CreatePeerPayload) => {
         return fetchWrapper('/api/createPeer', {
             method: 'POST',
             body: JSON.stringify(data),
         });
     }
-};
+};d

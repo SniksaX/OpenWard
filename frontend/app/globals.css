@@ -1,0 +1,164 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Cyberpunk Dark Theme - Dark Mode Only */
+  --background: #0A0E17;
+  --foreground: #E2E8F0;
+  --card: rgba(0, 0, 0, 0.4);
+  --card-foreground: #E2E8F0;
+  --popover: #0A0E17;
+  --popover-foreground: #E2E8F0;
+  --primary: #20C997;
+  --primary-foreground: #0A0E17;
+  --secondary: #1E293B;
+  --secondary-foreground: #E2E8F0;
+  --muted: #1E293B;
+  --muted-foreground: #64748B;
+  --accent: #00D4FF;
+  --accent-foreground: #0A0E17;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --warning: #F97316;
+  --warning-foreground: #0A0E17;
+  --border: #1E293B;
+  --input: #0A0E17;
+  --ring: #20C997;
+  --chart-1: #00D4FF;
+  --chart-2: #F97316;
+  --chart-3: #20C997;
+  --chart-4: #EF4444;
+  --chart-5: #64748B;
+  --radius: 0.25rem;
+  --sidebar: #0A0E17;
+  --sidebar-foreground: #E2E8F0;
+  --sidebar-primary: #20C997;
+  --sidebar-primary-foreground: #0A0E17;
+  --sidebar-accent: #1E293B;
+  --sidebar-accent-foreground: #E2E8F0;
+  --sidebar-border: #1E293B;
+  --sidebar-ring: #20C997;
+}
+
+@theme inline {
+  --font-sans: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Grid Pattern Background */
+.cyber-grid {
+  background-image: 
+    linear-gradient(rgba(30, 41, 59, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 41, 59, 0.3) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Neon Glow Effects */
+.glow-mint {
+  box-shadow: 0 0 10px #20C997, 0 0 20px rgba(32, 201, 151, 0.3);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 10px #00D4FF, 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+.glow-orange {
+  box-shadow: 0 0 10px #F97316, 0 0 20px rgba(249, 115, 22, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 10px #EF4444, 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* Text Glow */
+.text-glow-mint {
+  text-shadow: 0 0 10px rgba(32, 201, 151, 0.5);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+/* Blinking Animation */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
+
+.animate-blink {
+  animation: blink 1.5s infinite;
+}
+
+/* Pulse Glow Animation */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px #20C997, 0 0 10px rgba(32, 201, 151, 0.3); }
+  50% { box-shadow: 0 0 15px #20C997, 0 0 30px rgba(32, 201, 151, 0.5); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Scanline Effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+  );
+  pointer-events: none;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-mono;
+  }
+}
