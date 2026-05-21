@@ -15,7 +15,7 @@ func (p *PeersRepo) CreateTable() error {
 	query1 := `
 		CREATE TABLE IF NOT EXISTS peers (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
+			user_id INTEGER,
 			name VARCHAR(100) NOT NULL,
 			ip_address VARCHAR(39) UNIQUE NOT NULL,
 			public_key VARCHAR(44) UNIQUE NOT NULL,
@@ -178,10 +178,42 @@ func (p *PeersRepo) GetAllPeers() ([]types.Peer, error) {
 	return peers, nil
 }
 
+func (p *PeersRepo) GetPeerByIP(ip string) (*types.PeerClaim, error) {
+	query := `SELECT id, user_id, ip_address FROM peers WHERE ip_address = ? AND status = 'active' LIMIT 1`
+
+	var claim types.PeerClaim
+	var userID sql.NullInt64
+
+	err := p.db.QueryRow(query, ip).Scan(&claim.ID, &userID, &claim.IPAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	if userID.Valid {
+		v := int(userID.Int64)
+		claim.UserID = &v
+	}
+
+	return &claim, nil
+}
+
+func (p *PeersRepo) ClaimPeer(tx *sql.Tx, peerID, userID int) error {
+	query := `UPDATE peers SET user_id = ? WHERE id = ? AND user_id IS NULL`
+	res, err := tx.Exec(query, userID, peerID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return errors.New("peer is already claimed or does not exist")
+	}
+	return nil
+}
+
 func (p *PeersRepo) GetPeerConfig(publicKey string) (string, error) {
 	query := `SELECT client_config FROM peers WHERE public_key = ?`
 
-	var config sql.NullString // We use NullString just in case it's empty for old peers
+	var config sql.NullString
 
 	err := p.db.QueryRow(query, publicKey).Scan(&config)
 	if err != nil {

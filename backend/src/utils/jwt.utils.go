@@ -8,7 +8,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Fallback to a dev secret if APP_SECRET is not set in your .env
 func getSecretKey() []byte {
 	secret := os.Getenv("APP_SECRET")
 	if secret == "" {
@@ -17,11 +16,11 @@ func getSecretKey() []byte {
 	return []byte(secret)
 }
 
-func GenerateToken(userID int, username string) (string, error) {
-	// Token expires in 24 hours
+func GenerateToken(userID int, username string, role string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":  userID,
 		"username": username,
+		"role":     role,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(),
 	}
 

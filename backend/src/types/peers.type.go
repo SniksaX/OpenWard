@@ -66,6 +66,12 @@ type CreatePeer struct {
 	NetworkRole NetworkRole `json:"network_role"`
 }
 
+type PeerClaim struct {
+	ID        int    `json:"id"`
+	UserID    *int   `json:"user_id"`
+	IPAddress string `json:"ip_address"`
+}
+
 type PeerEvent struct {
 	ID        int       `json:"id"`
 	PublicKey string    `json:"public_key"`
