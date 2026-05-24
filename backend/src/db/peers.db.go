@@ -152,8 +152,19 @@ func (p *PeersRepo) GetPeersByUserID(userID int) ([]types.Peer, error) {
 }
 
 func (p *PeersRepo) RevokePeer(publicKey string) error {
-	query := `UPDATE peers SET status = 'revoked' WHERE public_key = ?`
-	_, err := p.db.Exec(query, publicKey)
+	var id int
+	var ip string
+
+	queryGet := `SELECT id, ip_address FROM peers WHERE public_key = ? LIMIT 1`
+	err := p.db.QueryRow(queryGet, publicKey).Scan(&id, &ip)
+	if err != nil {
+		return fmt.Errorf("failed to find peer to revoke: %v", err)
+	}
+
+	releasedIP := fmt.Sprintf("%s-rev-%d", ip, id)
+
+	queryUpdate := `UPDATE peers SET status = 'revoked', ip_address = ?, revoked_at = CURRENT_TIMESTAMP WHERE id = ?`
+	_, err = p.db.Exec(queryUpdate, releasedIP, id)
 	return err
 }
 
