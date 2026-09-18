@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -8,12 +9,22 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func getSecretKey() []byte {
-	secret := os.Getenv("APP_SECRET")
-	if secret == "" {
-		return []byte("super_secret_dev_key")
+var jwtSecret []byte
+
+func InitSecret() error {
+	s := os.Getenv("APP_SECRET")
+	if len(s) < 32 {
+		return errors.New("APP_SECRET must be set and at least 32 bytes")
 	}
-	return []byte(secret)
+	jwtSecret = []byte(s)
+	return nil
+}
+
+func getSecretKey() []byte {
+	if len(jwtSecret) == 0 {
+		panic("jwt: InitSecret was never called")
+	}
+	return jwtSecret
 }
 
 func GenerateToken(userID int, username string, role string) (string, error) {

@@ -6,9 +6,14 @@ import (
 	"net/http"
 	"openward/src/db"
 	"openward/src/routers"
+	"openward/src/utils"
 )
 
 func main() {
+	if err := utils.InitSecret(); err != nil {
+		log.Fatal(err)
+	}
+
 	myDB, err := db.InitDB()
 	if err != nil {
 		log.Fatalf("Could not connect to database: %v", err)
