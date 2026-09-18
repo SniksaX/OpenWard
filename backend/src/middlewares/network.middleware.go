@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -8,10 +9,24 @@ import (
 	"openward/src/utils"
 )
 
+func insecureLocalBypass() bool {
+	return os.Getenv("APP_ENV") == "dev" && os.Getenv("ALLOW_INSECURE_LOCAL") == "true"
+}
+
+func WarnIfInsecureLocal() {
+	if !insecureLocalBypass() {
+		return
+	}
+	log.Println("************************************************************************")
+	log.Println("WARNING: RequireAdminIP is BYPASSED")
+	log.Println("APP_ENV=dev and ALLOW_INSECURE_LOCAL=true — admin IP enforcement is disabled")
+	log.Println("Do not use this configuration in production")
+	log.Println("************************************************************************")
+}
+
 func RequireAdminIP(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Bypass IP check if in DEV mode
-		if os.Getenv("APP_ENV") == "dev" {
+		if insecureLocalBypass() {
 			next.ServeHTTP(w, r)
 			return
 		}

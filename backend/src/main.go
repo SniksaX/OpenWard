@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"openward/src/db"
+	"openward/src/middlewares"
 	"openward/src/routers"
 	"openward/src/utils"
 )
@@ -13,6 +14,7 @@ func main() {
 	if err := utils.InitSecret(); err != nil {
 		log.Fatal(err)
 	}
+	middlewares.WarnIfInsecureLocal()
 
 	myDB, err := db.InitDB()
 	if err != nil {
