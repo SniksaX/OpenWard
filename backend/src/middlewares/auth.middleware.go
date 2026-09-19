@@ -8,6 +8,14 @@ import (
 	"openward/src/utils"
 )
 
+type ctxKey string
+
+const (
+	CtxUserID   ctxKey = "user_id"
+	CtxUsername ctxKey = "username"
+	CtxRole     ctxKey = "role"
+)
+
 func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenString := ""
@@ -35,9 +43,21 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "user_id", claims["user_id"])
-		ctx = context.WithValue(ctx, "username", claims["username"])
+		ctx := context.WithValue(r.Context(), CtxUserID, claims["user_id"])
+		ctx = context.WithValue(ctx, CtxUsername, claims["username"])
+		ctx = context.WithValue(ctx, CtxRole, claims["role"])
 
 		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+}
+
+func RequireRole(role string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		got, ok := r.Context().Value(CtxRole).(string)
+		if !ok || got != role {
+			utils.WriteError(w, http.StatusForbidden, "Insufficient role")
+			return
+		}
+		next.ServeHTTP(w, r)
 	}
 }
