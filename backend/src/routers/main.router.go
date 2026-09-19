@@ -32,11 +32,13 @@ func (api *TypeRouter) RegisterRouter() {
 		DB:        api.DB.SQL,
 	}
 	peersController := &controllers.PeersController{Service: peerService}
+	streamTokens := middlewares.NewStreamTokenStore()
 
 	api.RouterMux.HandleFunc("GET /api/healthCheck", controllers.HealthCheck)
 	api.RouterMux.HandleFunc("GET /api/peers/{publicKey}/config", middlewares.RequireAdminIP(middlewares.RequireAuth(middlewares.RequireRole("admin", peersController.GetPeerConfig))))
 	api.RouterMux.HandleFunc("POST /api/createPeer", middlewares.RequireAdminIP(middlewares.RequireAuth(middlewares.RequireRole("admin", peersController.CreatePeer))))
-	api.RouterMux.HandleFunc("GET /api/streamStats", middlewares.RequireAdminIP(middlewares.RequireAuth(peersController.StreamLiveStats)))
+	api.RouterMux.HandleFunc("POST /api/streamToken", middlewares.RequireAdminIP(middlewares.RequireAuth(middlewares.IssueStreamToken(streamTokens))))
+	api.RouterMux.HandleFunc("GET /api/streamStats", middlewares.RequireAdminIP(middlewares.RequireStreamToken(streamTokens, peersController.StreamLiveStats)))
 	api.RouterMux.HandleFunc("DELETE /api/peers/{publicKey}", middlewares.RequireAdminIP(middlewares.RequireAuth(middlewares.RequireRole("admin", peersController.RevokePeer))))
 	api.RouterMux.HandleFunc("GET /api/peers", middlewares.RequireAdminIP(middlewares.RequireAuth(peersController.GetAllPeers)))
 	api.RouterMux.HandleFunc("GET /api/users/{id}/peers", middlewares.RequireAdminIP(middlewares.RequireAuth(peersController.GetUserPeers)))
