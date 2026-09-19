@@ -13,6 +13,15 @@ const (
 	RoleGuest        NetworkRole = "guest"
 )
 
+func ValidNetworkRole(role NetworkRole) bool {
+	switch role {
+	case RoleAdmin, RoleHiddenServer, RoleSharedServer, RoleEmployee, RoleGamer, RoleGuest:
+		return true
+	default:
+		return false
+	}
+}
+
 type DeviceType string
 
 const (
@@ -20,6 +29,15 @@ const (
 	Mobile  DeviceType = "mobile"
 	Desktop DeviceType = "desktop"
 )
+
+func ValidDeviceType(dt DeviceType) bool {
+	switch dt {
+	case Server, Mobile, Desktop:
+		return true
+	default:
+		return false
+	}
+}
 
 type Peer struct {
 	ID            int         `json:"id"`
