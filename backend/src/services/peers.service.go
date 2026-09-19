@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -22,6 +23,10 @@ func NewPeerService(repo *db.PeersRepo) *PeerService {
 }
 
 func (s *PeerService) CreatePeer(req types.CreatePeer, passphrase string) (string, error) {
+	if err := validateCreatePeer(req); err != nil {
+		return "", err
+	}
+
 	privateKey, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate private key: %v", err)
@@ -84,12 +89,32 @@ PersistentKeepalive = 25`, privateKey.String(), allocatedIP, dnsString, serverPu
 		}
 	}
 
+	if err := s.Repo.AddPeerEvent(publicKey.String(), "created", fmt.Sprintf("name=%s ip=%s", req.Name, newPeer.IPAddress)); err != nil {
+		fmt.Printf("Warning: Peer added, but event log failed: %v\n", err)
+	}
+
 	err = SyncWgConfig(s.Repo)
 	if err != nil {
 		fmt.Printf("Warning: Live peer added, but config sync failed: %v\n", err)
 	}
 
 	return newPeer.ClientConfig, nil
+}
+
+func validateCreatePeer(req types.CreatePeer) error {
+	if req.Name == "" {
+		return errors.New("name cannot be empty")
+	}
+	if len(req.Name) > 100 {
+		return errors.New("name must be at most 100 characters")
+	}
+	if !types.ValidDeviceType(req.DeviceType) {
+		return errors.New("invalid device type")
+	}
+	if !types.ValidNetworkRole(req.NetworkRole) {
+		return errors.New("invalid network role")
+	}
+	return nil
 }
 
 func (s *PeerService) applyPeerLive(interfaceName string, pubKey wgtypes.Key, allowedIP string) error {
@@ -117,7 +142,7 @@ func (s *PeerService) applyPeerLive(interfaceName string, pubKey wgtypes.Key, al
 	return client.ConfigureDevice(interfaceName, deviceConfig)
 }
 
-func (s *PeerService) GetLiveStats() ([]types.LivePeerStats, error) {
+func (s *PeerService) GetLiveStats(client *wgctrl.Client) ([]types.LivePeerStats, error) {
 	var liveStats []types.LivePeerStats
 
 	if os.Getenv("APP_ENV") == "dev" {
@@ -136,11 +161,9 @@ func (s *PeerService) GetLiveStats() ([]types.LivePeerStats, error) {
 		return liveStats, nil
 	}
 
-	client, err := wgctrl.New()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open kernel wgctrl: %v", err)
+	if client == nil {
+		return nil, fmt.Errorf("wgctrl client is required")
 	}
-	defer client.Close()
 
 	device, err := client.Device("wg0")
 	if err != nil {
@@ -190,6 +213,10 @@ func (s *PeerService) RevokePeer(publicKey string) error {
 	err := s.Repo.RevokePeer(publicKey)
 	if err != nil {
 		return fmt.Errorf("failed to revoke peer in database: %v", err)
+	}
+
+	if err := s.Repo.AddPeerEvent(publicKey, "revoked", ""); err != nil {
+		fmt.Printf("Warning: Peer revoked, but event log failed: %v\n", err)
 	}
 
 	err = SyncWgConfig(s.Repo)
