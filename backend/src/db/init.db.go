@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -13,18 +14,22 @@ type AppDB struct {
 }
 
 func InitDB() (*AppDB, error) {
-	conn, err := sql.Open("sqlite3", "./database.db")
+	path := os.Getenv("DB_PATH")
+	if path == "" {
+		path = "./database.db"
+	}
+	dsn := path + "?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on"
 
+	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}
+	conn.SetMaxOpenConns(1)
 
 	if err := conn.Ping(); err != nil {
+		conn.Close()
 		return nil, err
 	}
-
-	conn.Exec("PRAGMA journal_mode=WAL")
-	conn.Exec("PRAGMA foreign_keys=ON")
 
 	appDB := &AppDB{
 		SQL:   conn,
