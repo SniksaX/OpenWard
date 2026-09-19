@@ -32,14 +32,19 @@ func RequireAdminIP(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		ipStr := utils.ClientIP(r)
-		ip := net.ParseIP(ipStr).To4()
+		ip := net.ParseIP(ipStr)
 		if ip == nil {
-			utils.WriteError(w, http.StatusForbidden, "Only IPv4 connections allowed")
+			utils.WriteError(w, http.StatusForbidden, "Invalid connection format")
+			return
+		}
+		ip4 := ip.To4()
+		if ip4 == nil {
+			utils.WriteError(w, http.StatusForbidden, "IPv6 connections are not supported")
 			return
 		}
 
-		if ip[0] == 10 && ip[1] == 200 && ip[2] == 200 {
-			lastOctet := ip[3]
+		if ip4[0] == 10 && ip4[1] == 200 && ip4[2] == 200 {
+			lastOctet := ip4[3]
 
 			if lastOctet >= 2 && lastOctet <= 15 {
 				next.ServeHTTP(w, r)
