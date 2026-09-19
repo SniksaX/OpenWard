@@ -31,12 +31,7 @@ func RequireAdminIP(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		ipStr, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			utils.WriteError(w, http.StatusForbidden, "Invalid connection format")
-			return
-		}
-
+		ipStr := utils.ClientIP(r)
 		ip := net.ParseIP(ipStr).To4()
 		if ip == nil {
 			utils.WriteError(w, http.StatusForbidden, "Only IPv4 connections allowed")
