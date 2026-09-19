@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -15,7 +16,7 @@ func (p *PeersRepo) CreateTable() error {
 	query1 := `
 		CREATE TABLE IF NOT EXISTS peers (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER,
+			user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
 			name VARCHAR(100) NOT NULL,
 			ip_address VARCHAR(39) UNIQUE NOT NULL,
 			public_key VARCHAR(44) UNIQUE NOT NULL,
@@ -65,24 +66,59 @@ func (p *PeersRepo) AddPeer(peer types.Peer) error {
 	return err
 }
 
-func (p *PeersRepo) GetAvailableIP(role types.NetworkRole) (string, error) {
-	var start, end int
+func (p *PeersRepo) DeletePeerByPublicKey(publicKey string) error {
+	_, err := p.db.Exec(`DELETE FROM peers WHERE public_key = ?`, publicKey)
+	return err
+}
 
+func roleOctetRange(role types.NetworkRole) (int, int, error) {
 	switch role {
 	case types.RoleAdmin:
-		start, end = 2, 15
+		return 2, 15, nil
 	case types.RoleHiddenServer:
-		start, end = 16, 49
+		return 16, 49, nil
 	case types.RoleSharedServer:
-		start, end = 50, 99
+		return 50, 99, nil
 	case types.RoleEmployee:
-		start, end = 100, 149
+		return 100, 149, nil
 	case types.RoleGamer:
-		start, end = 150, 199
+		return 150, 199, nil
 	case types.RoleGuest:
-		start, end = 200, 254
+		return 200, 254, nil
 	default:
-		return "", errors.New("invalid network role")
+		return 0, 0, errors.New("invalid network role")
+	}
+}
+
+func firstFreeIP(start, end int, used map[string]bool, role types.NetworkRole) (string, error) {
+	for i := start; i <= end; i++ {
+		candidateIP := fmt.Sprintf("10.200.200.%d", i)
+		if !used[candidateIP] {
+			return candidateIP, nil
+		}
+	}
+	return "", fmt.Errorf("the IP subnet for the role '%s' is completely full", role)
+}
+
+func collectUsedIPs(rows *sql.Rows) (map[string]bool, error) {
+	usedIPs := make(map[string]bool)
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, err
+		}
+		usedIPs[ip] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return usedIPs, nil
+}
+
+func (p *PeersRepo) GetAvailableIP(role types.NetworkRole) (string, error) {
+	start, end, err := roleOctetRange(role)
+	if err != nil {
+		return "", err
 	}
 
 	query := `SELECT ip_address FROM peers WHERE network_role = ? AND status != 'revoked'`
@@ -92,23 +128,72 @@ func (p *PeersRepo) GetAvailableIP(role types.NetworkRole) (string, error) {
 	}
 	defer rows.Close()
 
-	usedIPs := make(map[string]bool)
-	for rows.Next() {
-		var ip string
-		if err := rows.Scan(&ip); err != nil {
-			return "", err
+	usedIPs, err := collectUsedIPs(rows)
+	if err != nil {
+		return "", err
+	}
+	return firstFreeIP(start, end, usedIPs, role)
+}
+
+func (p *PeersRepo) AllocateAndInsertPeer(role types.NetworkRole, build func(allocatedIP string) types.Peer) (types.Peer, error) {
+	ctx := context.Background()
+	conn, err := p.db.Conn(ctx)
+	if err != nil {
+		return types.Peer{}, err
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return types.Peer{}, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(ctx, "ROLLBACK")
 		}
-		usedIPs[ip] = true
+	}()
+
+	start, end, err := roleOctetRange(role)
+	if err != nil {
+		return types.Peer{}, err
 	}
 
-	for i := start; i <= end; i++ {
-		candidateIP := fmt.Sprintf("10.200.200.%d", i)
-		if !usedIPs[candidateIP] {
-			return candidateIP, nil
-		}
+	rows, err := conn.QueryContext(ctx, `SELECT ip_address FROM peers WHERE network_role = ? AND status != 'revoked'`, role)
+	if err != nil {
+		return types.Peer{}, err
+	}
+	usedIPs, err := collectUsedIPs(rows)
+	rows.Close()
+	if err != nil {
+		return types.Peer{}, err
 	}
 
-	return "", fmt.Errorf("the IP subnet for the role '%s' is completely full", role)
+	allocatedIP, err := firstFreeIP(start, end, usedIPs, role)
+	if err != nil {
+		return types.Peer{}, err
+	}
+
+	peer := build(allocatedIP)
+	peer.IPAddress = allocatedIP
+
+	_, err = conn.ExecContext(ctx, `
+		INSERT INTO peers (
+			user_id, name, ip_address, public_key, status, device_type,
+			network_role, last_handshake, transfer_rx, transfer_tx, client_config
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		peer.UserID, peer.Name, peer.IPAddress, peer.PublicKey, peer.Status,
+		peer.DeviceType, peer.NetworkRole, peer.LastHandshake,
+		peer.TransferRX, peer.TransferTX, peer.ClientConfig)
+	if err != nil {
+		return types.Peer{}, err
+	}
+
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return types.Peer{}, err
+	}
+	committed = true
+	return peer, nil
 }
 
 func (p *PeersRepo) GetActivePeers() ([]types.Peer, error) {
