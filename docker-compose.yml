@@ -1,0 +1,25 @@
+# Host networking is required so RequireAdminIP / ClientIP see the real source
+# address. Bridge NAT would make every request 127.0.0.1 and break issues 2 and 9.
+# NET_ADMIN + /dev/net/tun are required for wgctrl to configure wg0.
+
+services:
+  openward:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - /etc/wireguard:/etc/wireguard
+      - openward-db:/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_PATH: /data/database.db
+
+volumes:
+  openward-db:
