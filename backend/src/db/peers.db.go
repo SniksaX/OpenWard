@@ -248,7 +248,7 @@ func (p *PeersRepo) RevokePeer(publicKey string) error {
 
 	releasedIP := fmt.Sprintf("%s-rev-%d", ip, id)
 
-	queryUpdate := `UPDATE peers SET status = 'revoked', ip_address = ?, revoked_at = CURRENT_TIMESTAMP WHERE id = ?`
+	queryUpdate := `UPDATE peers SET status = 'revoked', ip_address = ?, revoked_at = CURRENT_TIMESTAMP, client_config = NULL WHERE id = ?`
 	_, err = p.db.Exec(queryUpdate, releasedIP, id)
 	return err
 }
@@ -317,4 +317,12 @@ func (p *PeersRepo) GetPeerConfig(publicKey string) (string, error) {
 	}
 
 	return config.String, nil
+}
+
+func (p *PeersRepo) AddPeerEvent(publicKey, action, details string) error {
+	_, err := p.db.Exec(
+		`INSERT INTO peer_events (public_key, action, details) VALUES (?, ?, ?)`,
+		publicKey, action, details,
+	)
+	return err
 }
