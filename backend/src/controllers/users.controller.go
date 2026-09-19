@@ -3,7 +3,6 @@ package controllers
 import (
 	"database/sql"
 	"encoding/json"
-	"net"
 	"net/http"
 	"openward/src/db"
 	"openward/src/services"
@@ -68,10 +67,7 @@ func (c *UsersController) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UsersController) Identify(w http.ResponseWriter, r *http.Request) {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
+	host := utils.ClientIP(r)
 
 	peer, err := c.PeersRepo.GetPeerByIP(host)
 	if err != nil {
@@ -101,10 +97,7 @@ func (c *UsersController) ClaimAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
+	host := utils.ClientIP(r)
 
 	token, err := services.ClaimAccount(req, host, c.Repo, c.PeersRepo, c.DB)
 	if err != nil {
