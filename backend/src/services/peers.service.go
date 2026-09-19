@@ -22,26 +22,11 @@ func NewPeerService(repo *db.PeersRepo) *PeerService {
 }
 
 func (s *PeerService) CreatePeer(req types.CreatePeer, passphrase string) (string, error) {
-
-	allocatedIP, err := s.Repo.GetAvailableIP(req.NetworkRole)
-	if err != nil {
-		return "", fmt.Errorf("failed to allocate IP: %v", err)
-	}
-
 	privateKey, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 	publicKey := privateKey.PublicKey()
-
-	if os.Getenv("APP_ENV") == "dev" {
-		fmt.Printf("[DEV MODE] Skipping kernel wgctrl update for peer: %s\n", req.Name)
-	} else {
-		err = s.applyPeerLive("wg0", publicKey, allocatedIP)
-		if err != nil {
-			return "", fmt.Errorf("failed to apply peer to live interface: %v", err)
-		}
-	}
 
 	dnsString := "1.1.1.1, 1.0.0.1"
 	if req.UseAdguard {
@@ -56,7 +41,8 @@ func (s *PeerService) CreatePeer(req types.CreatePeer, passphrase string) (strin
 	serverPublicKey := os.Getenv("WG_SERVER_PUBLIC_KEY")
 	serverEndpoint := os.Getenv("WG_SERVER_ENDPOINT")
 
-	clientConfig := fmt.Sprintf(`[Interface]
+	newPeer, err := s.Repo.AllocateAndInsertPeer(req.NetworkRole, func(allocatedIP string) types.Peer {
+		clientConfig := fmt.Sprintf(`[Interface]
 PrivateKey = %s
 Address = %s/24
 DNS = %s
@@ -67,24 +53,35 @@ Endpoint = %s
 AllowedIPs = %s
 PersistentKeepalive = 25`, privateKey.String(), allocatedIP, dnsString, serverPublicKey, serverEndpoint, allowedIpsString)
 
-	newPeer := types.Peer{
-		UserID:        req.UserID,
-		Name:          req.Name,
-		IPAddress:     allocatedIP,
-		PublicKey:     publicKey.String(),
-		Status:        "active",
-		DeviceType:    req.DeviceType,
-		NetworkRole:   req.NetworkRole,
-		LastHandshake: 0,
-		TransferRX:    0,
-		TransferTX:    0,
-		ClientConfig:  clientConfig,
-		CreatedAt:     time.Now(),
+		return types.Peer{
+			UserID:        req.UserID,
+			Name:          req.Name,
+			IPAddress:     allocatedIP,
+			PublicKey:     publicKey.String(),
+			Status:        "active",
+			DeviceType:    req.DeviceType,
+			NetworkRole:   req.NetworkRole,
+			LastHandshake: 0,
+			TransferRX:    0,
+			TransferTX:    0,
+			ClientConfig:  clientConfig,
+			CreatedAt:     time.Now(),
+		}
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to allocate IP and save peer: %v", err)
 	}
 
-	err = s.Repo.AddPeer(newPeer)
-	if err != nil {
-		return "", fmt.Errorf("failed to save peer to database: %v", err)
+	if os.Getenv("APP_ENV") == "dev" {
+		fmt.Printf("[DEV MODE] Skipping kernel wgctrl update for peer: %s\n", req.Name)
+	} else {
+		err = s.applyPeerLive("wg0", publicKey, newPeer.IPAddress)
+		if err != nil {
+			if delErr := s.Repo.DeletePeerByPublicKey(publicKey.String()); delErr != nil {
+				return "", fmt.Errorf("failed to apply peer to live interface: %v (also failed to roll back DB row: %v)", err, delErr)
+			}
+			return "", fmt.Errorf("failed to apply peer to live interface: %v", err)
+		}
 	}
 
 	err = SyncWgConfig(s.Repo)
@@ -92,7 +89,7 @@ PersistentKeepalive = 25`, privateKey.String(), allocatedIP, dnsString, serverPu
 		fmt.Printf("Warning: Live peer added, but config sync failed: %v\n", err)
 	}
 
-	return clientConfig, nil
+	return newPeer.ClientConfig, nil
 }
 
 func (s *PeerService) applyPeerLive(interfaceName string, pubKey wgtypes.Key, allowedIP string) error {
@@ -181,18 +178,18 @@ func (s *PeerService) GetLiveStats() ([]types.LivePeerStats, error) {
 }
 
 func (s *PeerService) RevokePeer(publicKey string) error {
-	err := s.Repo.RevokePeer(publicKey)
-	if err != nil {
-		return fmt.Errorf("failed to revoke peer in database: %v", err)
-	}
-
 	if os.Getenv("APP_ENV") == "dev" {
 		fmt.Printf("[DEV MODE] Skipping kernel removal for peer: %s\n", publicKey)
 	} else {
-		err = s.removePeerLive("wg0", publicKey)
+		err := s.removePeerLive("wg0", publicKey)
 		if err != nil {
 			return fmt.Errorf("failed to remove peer from live kernel: %v", err)
 		}
+	}
+
+	err := s.Repo.RevokePeer(publicKey)
+	if err != nil {
+		return fmt.Errorf("failed to revoke peer in database: %v", err)
 	}
 
 	err = SyncWgConfig(s.Repo)
