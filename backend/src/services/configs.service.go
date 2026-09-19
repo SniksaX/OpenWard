@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"text/template"
 
 	"openward/src/db"
@@ -135,7 +136,7 @@ func SyncWgConfig(repo *db.PeersRepo) error {
 		return fmt.Errorf("failed to execute template: %v", err)
 	}
 
-	targetFile := "/etc/wireguard/wg0.conf"
+	targetFile := wgConfigPath()
 
 	if os.Getenv("APP_ENV") == "dev" {
 		fmt.Println("[DEV MODE] Writing config to local file:", targetFile)
@@ -154,4 +155,14 @@ func SyncWgConfig(repo *db.PeersRepo) error {
 	}
 
 	return nil
+}
+
+func wgConfigPath() string {
+	if p := os.Getenv("WG_CONFIG_PATH"); p != "" {
+		return p
+	}
+	if os.Getenv("APP_ENV") == "dev" {
+		return filepath.Join(os.TempDir(), "openward-wg0.conf")
+	}
+	return "/etc/wireguard/wg0.conf"
 }
