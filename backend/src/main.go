@@ -28,6 +28,9 @@ func main() {
 	if err := myDB.Peers.CreateTable(); err != nil {
 		log.Fatalf("Could not create peers table: %v", err)
 	}
+	if err := myDB.Users.SeedBootstrapAdmin(); err != nil {
+		log.Fatalf("Could not seed bootstrap admin: %v", err)
+	}
 
 	router := routers.CreateRouter(myDB)
 	router.RegisterRouter()
