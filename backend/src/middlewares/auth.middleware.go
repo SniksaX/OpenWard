@@ -29,10 +29,6 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		if tokenString == "" {
-			tokenString = r.URL.Query().Get("token")
-		}
-
-		if tokenString == "" {
 			utils.WriteError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
