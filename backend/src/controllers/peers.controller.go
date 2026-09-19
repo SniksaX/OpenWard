@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"openward/src/services"
 	"openward/src/types"
 	"openward/src/utils"
+
+	"golang.zx2c4.com/wireguard/wgctrl"
 )
 
 type PeersController struct {
@@ -52,32 +55,53 @@ func (c *PeersController) StreamLiveStats(w http.ResponseWriter, r *http.Request
 
 	ctx := r.Context()
 
+	var wgClient *wgctrl.Client
+	if os.Getenv("APP_ENV") != "dev" {
+		client, err := wgctrl.New()
+		if err != nil {
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+			flusher.Flush()
+			return
+		}
+		defer client.Close()
+		wgClient = client
+	}
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	writeStats := func() bool {
+		stats, err := c.Service.GetLiveStats(wgClient)
+		if err != nil {
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+			flusher.Flush()
+			return false
+		}
+
+		jsonData, err := json.Marshal(stats)
+		if err != nil {
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", "Failed to marshal stats")
+			flusher.Flush()
+			return false
+		}
+
+		fmt.Fprintf(w, "data: %s\n\n", string(jsonData))
+		flusher.Flush()
+		return true
+	}
+
+	if !writeStats() {
+		return
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Client disconnected from live stream")
 			return
-
-		default:
-			stats, err := c.Service.GetLiveStats()
-			if err != nil {
-				fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
-				flusher.Flush()
+		case <-ticker.C:
+			if !writeStats() {
 				return
 			}
-
-			jsonData, err := json.Marshal(stats)
-			if err != nil {
-				fmt.Fprintf(w, "event: error\ndata: %s\n\n", "Failed to marshal stats")
-				flusher.Flush()
-				return
-			}
-
-			fmt.Fprintf(w, "data: %s\n\n", string(jsonData))
-
-			flusher.Flush()
-
-			time.Sleep(1 * time.Second)
 		}
 	}
 }
