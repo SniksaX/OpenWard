@@ -8,6 +8,7 @@ import (
 	"openward/src/middlewares"
 	"openward/src/routers"
 	"openward/src/utils"
+	"time"
 )
 
 func main() {
@@ -35,10 +36,18 @@ func main() {
 	router := routers.CreateRouter(myDB)
 	router.RegisterRouter()
 
-	port := ":4444"
-	fmt.Println("server starting on port", port)
-
-	if err := http.ListenAndServe(port, router.RouterMux); err != nil {
+	srv := newHTTPServer(router.RouterMux)
+	fmt.Println("server starting on port", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func newHTTPServer(handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              ":4444",
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 }
