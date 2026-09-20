@@ -14,6 +14,7 @@ import (
 
 func setupPeerService(t *testing.T) (*PeerService, *sql.DB) {
 	t.Helper()
+	t.Setenv("DB_PATH", "")
 	dir := t.TempDir()
 	wd, err := os.Getwd()
 	if err != nil {
