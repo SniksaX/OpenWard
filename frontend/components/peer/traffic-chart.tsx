@@ -3,9 +3,10 @@
 import { CyberPanel, CyberPanelHeader } from '@/components/cyber'
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import { Activity } from 'lucide-react'
+import type { TrafficPoint } from '@/lib/types'
 
 interface TrafficChartProps {
-  data: any[]
+  data: TrafficPoint[]
 }
 
 export function TrafficChart({ data }: TrafficChartProps) {
