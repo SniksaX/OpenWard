@@ -7,96 +7,67 @@ import Link from 'next/link'
 import { ArrowLeft, Shield, Lock } from 'lucide-react'
 import { CyberBadge, StatusDot } from '@/components/cyber'
 import { TrafficChart, PeerConfig, NodeOperations } from '@/components/peer'
-import { api } from '@/lib/api'
+import { api, mapPeer } from '@/lib/api'
+import { useLiveStats } from '@/hooks/use-live-stats'
+import type { MappedPeer, TrafficPoint } from '@/lib/types'
 
 function PeerDetailContent() {
   const searchParams = useSearchParams()
   const id = searchParams.get('id')
   const router = useRouter()
-  
-  const [peer, setPeer] = useState<any>(null)
+
+  const [peer, setPeer] = useState<MappedPeer | null>(null)
   const [error, setError] = useState(false)
-  const [graphData, setGraphData] = useState<any[]>([])
+  const [graphData, setGraphData] = useState<TrafficPoint[]>([])
   const prevStats = useRef({ rx: -1, tx: -1, time: Date.now() })
 
   useEffect(() => {
     if (!id) return
-    const token = localStorage.getItem('token')
-    if (!token) {
-      router.push('/')
-      return
-    }
 
-    // Direct Bulletproof Fetch (Bypasses any potential api.ts mapPeer bugs)
-    fetch('/api/peers', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      const rawPeers = data.peers || []
-      
-      // Match ID strictly treating both as Strings
-      const found = rawPeers.find((p: any) => String(p.id) === String(id) || String(p.public_key) === String(id))
-      
-      if (found) {
-        setPeer({
-          id: found.id,
-          pubKey: found.public_key,
-          identifier: found.name,
-          ip: found.ip_address,
-          role: found.network_role,
-          status: found.status === 'active' ? 'online' : 'offline',
-          rxTraffic: found.transfer_rx,
-          txTraffic: found.transfer_tx,
-          endpoint: found.last_endpoint || 'N/A',
-          operatorId: found.user_id,
-          lastSeen: found.last_handshake > 0 ? new Date(found.last_handshake * 1000).toLocaleString() : 'NEVER'
-        })
-      } else {
-        console.error("No peer found matching ID:", id)
+    api.getPeers()
+      .then(data => {
+        const rawPeers = data.peers || []
+        const mapped = rawPeers.map(mapPeer).filter((p): p is MappedPeer => p != null)
+        const found = mapped.find(p => String(p.id) === String(id) || String(p.pubKey) === String(id))
+
+        if (found) {
+          setPeer(found)
+        } else {
+          console.error("No peer found matching ID:", id)
+          setError(true)
+        }
+      })
+      .catch(err => {
+        console.error("Failed to fetch peer data:", err)
         setError(true)
+      })
+  }, [id])
+
+  useLiveStats((stats) => {
+    setPeer(prev => {
+      if (!prev || !prev.pubKey) return prev
+
+      const update = stats.find(s => s.public_key === prev.pubKey)
+      if (update) {
+        return {
+          ...prev,
+          rxTraffic: update.transfer_rx,
+          txTraffic: update.transfer_tx,
+          status: update.is_online ? 'online' : 'idle',
+          endpoint: update.endpoint
+        }
       }
+      return prev
     })
-    .catch(err => {
-      console.error("Failed to fetch peer data:", err)
-      setError(true)
-    })
+  })
 
-    // Setup Live SSE
-    const evtSource = new EventSource(`/api/streamStats?token=${token}`)
-    evtSource.onmessage = (event) => {
-      try {
-        const stats = JSON.parse(event.data)
-        
-        setPeer((prev: any) => {
-          if (!prev || !prev.pubKey) return prev; // Safety check
-          
-          const update = stats.find((s: any) => s.public_key === prev.pubKey)
-          if (update) {
-            return {
-              ...prev,
-              rxTraffic: update.transfer_rx,
-              txTraffic: update.transfer_tx,
-              status: update.is_online ? 'online' : 'idle',
-              endpoint: update.endpoint
-            }
-          }
-          return prev
-        })
-      } catch (err) {}
-    }
-
-    return () => evtSource.close()
-  }, [id, router])
-
-  // Process live graph data
   useEffect(() => {
     if (!peer) return
     setGraphData(prev => {
       const now = Date.now()
       const timeDiff = (now - prevStats.current.time) / 1000
-      let currentRx = Number(peer.rxTraffic) || 0
-      let currentTx = Number(peer.txTraffic) || 0
+      const currentRx = Number(peer.rxTraffic) || 0
+      const currentTx = Number(peer.txTraffic) || 0
 
       if (prevStats.current.rx === -1) {
         prevStats.current = { rx: currentRx, tx: currentTx, time: now }
@@ -105,11 +76,11 @@ function PeerDetailContent() {
 
       if (timeDiff <= 0) return prev
 
-      let rxSpeedBytes = Math.max(0, (currentRx - prevStats.current.rx) / timeDiff)
-      let txSpeedBytes = Math.max(0, (currentTx - prevStats.current.tx) / timeDiff)
+      const rxSpeedBytes = Math.max(0, (currentRx - prevStats.current.rx) / timeDiff)
+      const txSpeedBytes = Math.max(0, (currentTx - prevStats.current.tx) / timeDiff)
 
-      let rxMBps = Number((rxSpeedBytes / 1048576).toFixed(2))
-      let txMBps = Number((txSpeedBytes / 1048576).toFixed(2))
+      const rxMBps = Number((rxSpeedBytes / 1048576).toFixed(2))
+      const txMBps = Number((txSpeedBytes / 1048576).toFixed(2))
 
       prevStats.current = { rx: currentRx, tx: currentTx, time: now }
 
@@ -152,7 +123,7 @@ function PeerDetailContent() {
       a.href = url
       a.download = `${peer.identifier.replace(/\s+/g, '_')}_wg0.conf`
       a.click()
-    } catch (err) {
+    } catch {
       alert("Failed to download config!")
     }
   }
@@ -162,7 +133,7 @@ function PeerDetailContent() {
       try {
         await api.revokePeer(peer.pubKey)
         router.push('/dashboard')
-      } catch (err) {
+      } catch {
         alert("Failed to revoke peer.")
       }
     }
@@ -195,7 +166,7 @@ function PeerDetailContent() {
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">OPERATOR_ID</div>
-          <div className="text-sm font-mono text-primary">{peer.operatorId || 'SYS'}</div>
+          <div className="text-sm font-mono text-primary">{peer.operatorId ?? 'UNCLAIMED'}</div>
         </div>
       </div>
 
