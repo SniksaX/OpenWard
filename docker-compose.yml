@@ -5,8 +5,8 @@
 services:
   openward:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     network_mode: host
     cap_add:
       - NET_ADMIN
@@ -20,6 +20,7 @@ services:
         required: false
     environment:
       DB_PATH: /data/database.db
+      SERVE_DIR: /app/dist
 
 volumes:
   openward-db:
