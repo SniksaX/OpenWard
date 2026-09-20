@@ -10,6 +10,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'OPENWARD | VPN Control Matrix',
   description: 'WireGuard VPN Management Dashboard',
+  icons: {
+    icon: '/openward-appicon.png',
+    apple: '/openward-appicon.png',
+  },
 }
 
 export const viewport: Viewport = {
