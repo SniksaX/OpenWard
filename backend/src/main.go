@@ -15,6 +15,9 @@ func main() {
 	if err := utils.InitSecret(); err != nil {
 		log.Fatal(err)
 	}
+	if err := utils.InitWireGuard(); err != nil {
+		log.Fatal(err)
+	}
 	middlewares.WarnIfInsecureLocal()
 
 	myDB, err := db.InitDB()
@@ -36,7 +39,7 @@ func main() {
 	router := routers.CreateRouter(myDB)
 	router.RegisterRouter()
 
-	srv := newHTTPServer(router.RouterMux)
+	srv := newHTTPServer(middlewares.CORS(router.RouterMux))
 	fmt.Println("server starting on port", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
