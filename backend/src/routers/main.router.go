@@ -50,36 +50,58 @@ func (api *TypeRouter) RegisterRouter() {
 	api.RouterMux.HandleFunc("POST /api/createUser", middlewares.RequireAdminIP(middlewares.RequireAuth(middlewares.RequireRole("admin", usersController.CreateUser))))
 	api.RouterMux.HandleFunc("POST /api/login", middlewares.RequireAdminIP(usersController.Login))
 
-	api.RouterMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		cleanPath := filepath.Clean(r.URL.Path)
-		localPath := filepath.Join("./dist", cleanPath)
+	api.RouterMux.HandleFunc("/", api.serveFrontend)
+}
 
-		info, err := os.Stat(localPath)
+func ServeDir() string {
+	if d := os.Getenv("SERVE_DIR"); d != "" {
+		return d
+	}
+	return "./dist"
+}
 
-		if err == nil && !info.IsDir() {
-			http.ServeFile(w, r, localPath)
+func staticPath(urlPath string) string {
+	rel := strings.TrimPrefix(filepath.Clean("/"+urlPath), "/")
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return filepath.Join(ServeDir(), rel)
+}
+
+func (api *TypeRouter) serveFrontend(w http.ResponseWriter, r *http.Request) {
+	root := ServeDir()
+	localPath := staticPath(r.URL.Path)
+	if localPath == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	info, err := os.Stat(localPath)
+
+	if err == nil && !info.IsDir() {
+		http.ServeFile(w, r, localPath)
+		return
+	}
+
+	htmlPath := localPath + ".html"
+	if _, err := os.Stat(htmlPath); err == nil {
+		http.ServeFile(w, r, htmlPath)
+		return
+	}
+
+	if err == nil && info.IsDir() {
+		indexPath := filepath.Join(localPath, "index.html")
+		if _, err := os.Stat(indexPath); err == nil {
+			http.ServeFile(w, r, indexPath)
 			return
 		}
+	}
 
-		htmlPath := localPath + ".html"
-		if _, err := os.Stat(htmlPath); err == nil {
-			http.ServeFile(w, r, htmlPath)
-			return
-		}
+	cleanPath := filepath.Clean(r.URL.Path)
+	if strings.Contains(cleanPath, ".") {
+		http.NotFound(w, r)
+		return
+	}
 
-		if err == nil && info.IsDir() {
-			indexPath := filepath.Join(localPath, "index.html")
-			if _, err := os.Stat(indexPath); err == nil {
-				http.ServeFile(w, r, indexPath)
-				return
-			}
-		}
-
-		if strings.Contains(cleanPath, ".") {
-			http.NotFound(w, r)
-			return
-		}
-
-		http.ServeFile(w, r, "./dist/index.html")
-	})
+	http.ServeFile(w, r, filepath.Join(root, "index.html"))
 }
