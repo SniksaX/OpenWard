@@ -2,7 +2,7 @@
 
 import { CyberInput, CyberButton } from '@/components/cyber'
 import { motion } from 'framer-motion'
-import { Shield } from 'lucide-react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { api } from '@/lib/api'
@@ -24,8 +24,8 @@ export default function LoginPage() {
         localStorage.setItem('token', data.token)
         router.push('/dashboard')
       }
-    } catch (err: any) {
-      setError(err.message || "Login failed")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setIsLoading(false)
     }
@@ -39,8 +39,13 @@ export default function LoginPage() {
           
           <div className="p-8 relative">
             <div className="text-center mb-8">
-              <Shield className="w-16 h-16 mx-auto text-primary mb-4 p-4 bg-primary/10 border border-primary/30 rounded-sm" />
-              <h1 className="text-2xl font-mono uppercase tracking-tighter text-glow-mint">OPENWARD</h1>
+              <Image
+                src="/openward-lockup-gradient-ondark.svg"
+                alt="OpenWard"
+                width={232}
+                height={44}
+                className="mx-auto mb-4"
+              />
               <p className="text-xs uppercase tracking-widest text-primary mt-1">[ ACCESS ]</p>
             </div>
 
@@ -49,14 +54,14 @@ export default function LoginPage() {
                 label="User_Ident (Email)" 
                 placeholder="Enter email..." 
                 value={email}
-                onChange={(e: any) => setEmail(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               />
               <CyberInput 
                 label="Passphrase" 
                 type="password" 
                 placeholder="Enter passphrase..." 
                 value={password}
-                onChange={(e: any) => setPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
               />
 
               {error && <div className="text-destructive text-xs uppercase tracking-widest font-bold border border-destructive/30 bg-destructive/10 p-2">{error}</div>}
