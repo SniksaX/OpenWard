@@ -8,8 +8,10 @@ import { Rocket, ArrowLeft, Terminal } from 'lucide-react'
 import { CyberPanel, CyberPanelHeader, CyberInput, CyberSelect, CyberToggle, CyberButton } from '@/components/cyber'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { getJwtUserId } from '@/lib/auth'
+import type { DeviceType, NetworkRole, User } from '@/lib/types'
 
-const roleOptions = [
+const roleOptions: { value: NetworkRole; label: string }[] = [
   { value: 'admin', label: 'ADMIN [Full Network Access]' },
   { value: 'shared_server', label: 'SHARED SERVER [Visible to Admins & Employees]' },
   { value: 'hidden_server', label: 'HIDDEN SERVER [Visible to Admins Only]' },
@@ -18,20 +20,29 @@ const roleOptions = [
   { value: 'guest', label: 'GUEST [Isolated Internet Access]' }
 ]
 
-const hardwareOptions = [
+const hardwareOptions: { value: DeviceType; label: string }[] = [
   { value: 'server', label: 'SERVER' },
   { value: 'desktop', label: 'DESKTOP' },
   { value: 'mobile', label: 'MOBILE' }
 ]
 
+interface DeployForm {
+  userId: number | null
+  identifier: string
+  role: NetworkRole
+  hardware: DeviceType
+  routeAllTraffic: boolean
+  enableAdGuard: boolean
+}
+
 export default function DeployPage() {
   const router = useRouter()
   const [isDeploying, setIsDeploying] = useState(false)
-  const [users, setUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [generatedConfig, setGeneratedConfig] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [formData, setFormData] = useState({
-    userId: 1,
+  const [formData, setFormData] = useState<DeployForm>({
+    userId: null,
     identifier: '',
     role: 'employee',
     hardware: 'desktop',
@@ -39,23 +50,15 @@ export default function DeployPage() {
     enableAdGuard: true,
   })
 
-  const getUserId = () => {
-    if (typeof window === 'undefined') return 1
-    const token = localStorage.getItem('token')
-    if (!token) return 1
-    try {
-      return JSON.parse(atob(token.split('.')[1])).user_id || 1
-    } catch {
-      return 1
-    }
+  const getUserId = (): number | null => {
+    return getJwtUserId()
   }
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const data = await api.getUsers()
-        setUsers(data || [])
-        setFormData((prev: any) => ({ ...prev, userId: getUserId() }))
+        setUsers(Array.isArray(data) ? data : [])
       } catch (err) {
         console.error("Failed to load users", err)
       }
@@ -65,6 +68,10 @@ export default function DeployPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.userId == null) {
+      setError('OPERATOR_REQUIRED: select an operator before deploying')
+      return
+    }
     setIsDeploying(true)
     setError('')
 
@@ -84,8 +91,8 @@ export default function DeployPage() {
       } else {
         router.push('/dashboard')
       }
-    } catch (err: any) {
-      setError(err.message || "Deployment Failed")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Deployment Failed')
       setIsDeploying(false)
     }
   }
@@ -142,7 +149,7 @@ export default function DeployPage() {
                 className="w-full mt-2"
                 onClick={() => {
                   setGeneratedConfig(null)
-                  setFormData({ ...formData, identifier: '' })
+                  setFormData({ ...formData, identifier: '', userId: null })
                 }}
               >
                 DEPLOY ANOTHER NODE
@@ -153,6 +160,11 @@ export default function DeployPage() {
       </motion.div>
     )
   }
+
+  const operatorOptions = [
+    { value: '', label: 'SELECT_OPERATOR' },
+    ...users.map((u: User) => ({ value: String(u.id), label: u.username })),
+  ]
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 max-w-2xl mx-auto">
@@ -175,17 +187,19 @@ export default function DeployPage() {
           <div className="p-4 space-y-4">
             <CyberSelect
               label="Operator (User)"
-              options={users.length > 0
-                ? users.map(u => ({ value: String(u.id), label: u.username }))
-                : [{ value: String(formData.userId), label: 'LOADING_OPERATORS...' }]}
-              value={String(formData.userId)}
-              onChange={(e: any) => setFormData({ ...formData, userId: Number(e.target.value) })}
+              options={operatorOptions}
+              value={formData.userId == null ? '' : String(formData.userId)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                const v = e.target.value
+                setFormData({ ...formData, userId: v === '' ? null : Number(v) })
+              }}
+              required
             />
             <CyberInput
               label="Node Identifier"
               placeholder="e.g. John's iPhone, Prod DB Server..."
               value={formData.identifier}
-              onChange={(e: any) => setFormData({ ...formData, identifier: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, identifier: e.target.value })}
               required
             />
           </div>
@@ -198,13 +212,13 @@ export default function DeployPage() {
               label="Network Role"
               options={roleOptions}
               value={formData.role}
-              onChange={(e: any) => setFormData({ ...formData, role: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, role: e.target.value as NetworkRole })}
             />
             <CyberSelect
               label="Hardware Type"
               options={hardwareOptions}
               value={formData.hardware}
-              onChange={(e: any) => setFormData({ ...formData, hardware: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, hardware: e.target.value as DeviceType })}
             />
           </div>
         </CyberPanel>
@@ -234,7 +248,12 @@ export default function DeployPage() {
         )}
 
         <div className="pt-4">
-          <CyberButton type="submit" size="lg" className="w-full" disabled={isDeploying || !formData.identifier}>
+          <CyberButton
+            type="submit"
+            size="lg"
+            className="w-full"
+            disabled={isDeploying || !formData.identifier || formData.userId == null}
+          >
             <span className="flex items-center justify-center gap-2">
               <Rocket className="w-5 h-5" />
               {isDeploying ? 'GENERATING_KEYS...' : 'EXECUTE_DEPLOYMENT'}
