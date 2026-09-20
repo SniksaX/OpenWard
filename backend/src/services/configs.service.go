@@ -13,6 +13,7 @@ import (
 
 type wgTemplateData struct {
 	ServerPrivateKey string
+	EgressIface      string
 	Admins           []types.Peer
 	HiddenServers    []types.Peer
 	SharedServers    []types.Peer
@@ -34,7 +35,7 @@ PostUp = iptables -I FORWARD -i %i -m iprange --src-range 10.200.200.100-10.200.
 PostUp = iptables -I FORWARD -i %i -m iprange --src-range 10.200.200.16-10.200.200.99 -m iprange --dst-range 10.200.200.2-10.200.200.15 -m state --state NEW -j DROP
 PostUp = iptables -I FORWARD -i %i -m iprange --src-range 10.200.200.16-10.200.200.99 -m iprange --dst-range 10.200.200.100-10.200.200.254 -m state --state NEW -j DROP
 PostUp = iptables -A FORWARD -i %i -j ACCEPT
-PostUp = iptables -t nat -A POSTROUTING -o ens3 -j MASQUERADE
+PostUp = iptables -t nat -A POSTROUTING -o {{.EgressIface}} -j MASQUERADE
 
 PostDown = iptables -D FORWARD -i %i -m iprange --src-range 10.200.200.200-10.200.200.254 -d 10.200.200.0/24 -m state --state NEW -j DROP
 PostDown = iptables -D FORWARD -i %i -m iprange --src-range 10.200.200.150-10.200.200.199 -m iprange --dst-range 10.200.200.2-10.200.200.149 -m state --state NEW -j DROP
@@ -44,7 +45,7 @@ PostDown = iptables -D FORWARD -i %i -m iprange --src-range 10.200.200.100-10.20
 PostDown = iptables -D FORWARD -i %i -m iprange --src-range 10.200.200.16-10.200.200.99 -m iprange --dst-range 10.200.200.2-10.200.200.15 -m state --state NEW -j DROP
 PostDown = iptables -D FORWARD -i %i -m iprange --src-range 10.200.200.16-10.200.200.99 -m iprange --dst-range 10.200.200.100-10.200.200.254 -m state --state NEW -j DROP
 PostDown = iptables -D FORWARD -i %i -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -o ens3 -j MASQUERADE
+PostDown = iptables -t nat -D POSTROUTING -o {{.EgressIface}} -j MASQUERADE
 
 # ---------------------------------------------------------
 # PEERS
@@ -107,6 +108,7 @@ func SyncWgConfig(repo *db.PeersRepo) error {
 
 	data := wgTemplateData{
 		ServerPrivateKey: os.Getenv("WG_SERVER_PRIVATE_KEY"),
+		EgressIface:      egressIface(),
 	}
 
 	for _, p := range peers {
@@ -155,6 +157,13 @@ func SyncWgConfig(repo *db.PeersRepo) error {
 	}
 
 	return nil
+}
+
+func egressIface() string {
+	if iface := os.Getenv("WG_EGRESS_IFACE"); iface != "" {
+		return iface
+	}
+	return "ens3"
 }
 
 func wgConfigPath() string {
