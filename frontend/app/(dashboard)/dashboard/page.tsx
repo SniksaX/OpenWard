@@ -5,46 +5,37 @@ import { ActionBar, RoutingTable } from '@/components/routing'
 import { motion } from 'framer-motion'
 import { Network } from 'lucide-react'
 import { api, mapPeer } from '@/lib/api'
+import { useLiveStats } from '@/hooks/use-live-stats'
+import type { LivePeerStats, MappedPeer } from '@/lib/types'
 
 export default function DashboardPage() {
-  const [peers, setPeers] = useState<any[]>([])
+  const [peers, setPeers] = useState<MappedPeer[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [sortBy, setSortBy] = useState('last_seen')
 
-  // Fetch initial data and setup SSE stream
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) return
-
-    // Initial Fetch
     api.getPeers().then(data => {
-        const rawPeers = Array.isArray(data?.peers) ? data.peers : []
-        setPeers(rawPeers.map(mapPeer))
+      const rawPeers = Array.isArray(data?.peers) ? data.peers : []
+      setPeers(rawPeers.map(mapPeer).filter((p): p is MappedPeer => p != null))
     }).catch(console.error)
-
-    // Live Stream Setup
-    const evtSource = new EventSource(`/api/streamStats?token=${token}`)
-    evtSource.onmessage = (event) => {
-      try {
-        const stats = JSON.parse(event.data)
-        setPeers(current => current.map(p => {
-          const update = stats.find((s: any) => s.public_key === p.pubKey)
-          if (update) {
-            return {
-              ...p,
-              rxTraffic: update.transfer_rx,
-              txTraffic: update.transfer_tx,
-              status: update.is_online ? 'online' : 'idle',
-              endpoint: update.endpoint
-            }
-          }
-          return p
-        }))
-      } catch (err) {}
-    }
-    return () => evtSource.close()
   }, [])
+
+  useLiveStats((stats: LivePeerStats[]) => {
+    setPeers(current => current.map(p => {
+      const update = stats.find(s => s.public_key === p.pubKey)
+      if (update) {
+        return {
+          ...p,
+          rxTraffic: update.transfer_rx,
+          txTraffic: update.transfer_tx,
+          status: update.is_online ? 'online' : 'idle',
+          endpoint: update.endpoint
+        }
+      }
+      return p
+    }))
+  })
 
   const filteredPeers = useMemo(() => {
     let filtered = [...peers]
@@ -76,7 +67,6 @@ export default function DashboardPage() {
         sortBy={sortBy} onSortChange={setSortBy}
       />
 
-      {/* Passing REAL data to v0's component */}
       <RoutingTable peers={filteredPeers} />
     </motion.div>
   )
