@@ -1,73 +1,111 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+import type {
+  ClaimRequest,
+  CreatePeerPayload,
+  CreatePeerResponse,
+  CreateUserPayload,
+  LoginResponse,
+  MappedPeer,
+  Peer,
+  PeerConfigResponse,
+  PeersResponse,
+  StreamTokenResponse,
+  User,
+} from '@/lib/types'
 
-async function fetchWrapper(endpoint: string, options: RequestInit = {}) {
-    // Safely get token (Next.js requires checking if window exists)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const headers = new Headers(options.headers || {});
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
+export class ApiError extends Error {
+  readonly status: number
+  readonly body: string
+
+  constructor(status: number, body: string) {
+    let message = body || `HTTP ${status}`
+    try {
+      const parsed = JSON.parse(body) as { error?: string }
+      if (parsed.error) message = parsed.error
+    } catch {
+      // keep raw body
     }
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
 
-    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
-        headers.set('Content-Type', 'application/json');
-    }
+export function isApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError
+}
 
-    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+async function fetchWrapper<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  const headers = new Headers(options.headers || {})
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(errorBody || response.statusText);
-    }
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
 
-    return response.json();
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new ApiError(response.status, errorBody || response.statusText)
+  }
+
+  return response.json() as Promise<T>
 }
 
 export const api = {
-    login: (email?: string, password?: string) =>
-        fetchWrapper('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (email?: string, password?: string) =>
+    fetchWrapper<LoginResponse>('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
-    register: (data: any) =>
-        fetchWrapper('/api/createUser', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: CreateUserPayload) =>
+    fetchWrapper<{ message: string }>('/api/createUser', { method: 'POST', body: JSON.stringify(data) }),
 
-    identify: () =>
-        fetchWrapper('/api/auth/identify', { method: 'GET' }),
+  identify: () =>
+    fetchWrapper<Record<string, unknown>>('/api/auth/identify', { method: 'GET' }),
 
-    claim: (data: any) =>
-        fetchWrapper('/api/auth/claim', { method: 'POST', body: JSON.stringify(data) }),
+  claim: (data: ClaimRequest) =>
+    fetchWrapper<LoginResponse>('/api/auth/claim', { method: 'POST', body: JSON.stringify(data) }),
 
-    getUsers: () =>
-        fetchWrapper('/api/users', { method: 'GET' }),
+  getUsers: () =>
+    fetchWrapper<User[]>('/api/users', { method: 'GET' }),
 
-    getPeers: () =>
-        fetchWrapper('/api/peers', { method: 'GET' }),
+  getPeers: () =>
+    fetchWrapper<PeersResponse>('/api/peers', { method: 'GET' }),
 
-    getPeerConfig: (publicKey: string) =>
-        fetchWrapper(`/api/peers/${encodeURIComponent(publicKey)}/config`, { method: 'GET' }),
+  getPeerConfig: (publicKey: string) =>
+    fetchWrapper<PeerConfigResponse>(`/api/peers/${encodeURIComponent(publicKey)}/config`, { method: 'GET' }),
 
-    revokePeer: (publicKey: string) =>
-        fetchWrapper(`/api/peers/${encodeURIComponent(publicKey)}`, { method: 'DELETE' }),
+  revokePeer: (publicKey: string) =>
+    fetchWrapper<{ message: string }>(`/api/peers/${encodeURIComponent(publicKey)}`, { method: 'DELETE' }),
 
-    createPeer: (data: any) =>
-        fetchWrapper('/api/createPeer', { method: 'POST', body: JSON.stringify(data) })
-};
+  createPeer: (data: CreatePeerPayload) =>
+    fetchWrapper<CreatePeerResponse>('/api/createPeer', { method: 'POST', body: JSON.stringify(data) }),
 
-// Map Go Backend data to v0.dev's UI expectations
-export const mapPeer = (p: any) => {
-    if (!p) return null;
-    return {
-        id: p.id || p.public_key,
-        operatorId: String(p.user_id || 1),
-        identifier: p.name || 'Unknown',
-        ip: p.ip_address || '0.0.0.0',
-        pubKey: p.public_key || '',
-        role: p.network_role || 'standard',
-        device: p.device_type || 'server',
-        rxTraffic: p.transfer_rx || 0,
-        txTraffic: p.transfer_tx || 0,
-        status: p.is_online ? 'online' : (p.status === 'active' ? 'idle' : 'offline'),
-        lastSeen: p.last_handshake === 0 ? 'NEVER' : 'ACTIVE',
-        endpoint: p.last_endpoint || 'AWAITING_CONNECTION',
-        handshake: p.last_handshake || 0,
-    };
-};
+  getStreamToken: () =>
+    fetchWrapper<StreamTokenResponse>('/api/streamToken', { method: 'POST' }),
+}
+
+export const mapPeer = (p: Peer | null | undefined): MappedPeer | null => {
+  if (!p) return null
+  return {
+    id: String(p.id ?? p.public_key),
+    operatorId: p.user_id == null ? null : String(p.user_id),
+    identifier: p.name || 'Unknown',
+    ip: p.ip_address || '0.0.0.0',
+    pubKey: p.public_key || '',
+    role: p.network_role || 'guest',
+    device: p.device_type || 'server',
+    rxTraffic: p.transfer_rx || 0,
+    txTraffic: p.transfer_tx || 0,
+    status: p.status === 'active' ? 'idle' : 'offline',
+    lastSeen: p.last_handshake === 0 ? 'NEVER' : 'ACTIVE',
+    endpoint: p.last_endpoint || 'AWAITING_CONNECTION',
+    handshake: p.last_handshake || 0,
+  }
+}
