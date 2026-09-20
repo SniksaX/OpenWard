@@ -1,0 +1,14 @@
+.git
+**/.env
+**/.env.*
+!.env.example
+**/node_modules
+frontend/.next
+frontend/dist
+frontend/.env.local
+svgs
+*.db
+*.db-wal
+*.db-shm
+backend/bin
+**/*.test
