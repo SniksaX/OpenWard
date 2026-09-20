@@ -4,16 +4,21 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Users, Shield, UserPlus, RefreshCw } from 'lucide-react'
 import { CyberPanel, CyberPanelHeader, CyberInput, CyberSelect, CyberButton, CyberBadge } from '@/components/cyber'
-import { api } from '@/lib/api'
+import { api, isApiError } from '@/lib/api'
+import { getJwtRole } from '@/lib/auth'
+import type { CreateUserPayload, User } from '@/lib/types'
+
+const FORBIDDEN_MESSAGE = 'ADMIN_ROLE_REQUIRED: this action needs an admin JWT'
 
 export default function UsersPage() {
-    const [users, setUsers] = useState<any[]>([])
+    const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(true)
     const [isProvisioning, setIsProvisioning] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
+    const [isAdmin, setIsAdmin] = useState(false)
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<CreateUserPayload>({
         username: '',
         email: '',
         password: '',
@@ -24,15 +29,20 @@ export default function UsersPage() {
         setLoading(true)
         try {
             const data = await api.getUsers()
-            setUsers(data || [])
-        } catch (err) {
-            console.error(err)
+            setUsers(Array.isArray(data) ? data : [])
+        } catch (err: unknown) {
+            if (isApiError(err) && err.status === 403) {
+                setError(FORBIDDEN_MESSAGE)
+            } else {
+                console.error(err)
+            }
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
+        setIsAdmin(getJwtRole() === 'admin')
         fetchUsers()
     }, [])
 
@@ -47,8 +57,12 @@ export default function UsersPage() {
             setSuccess("USER_PROVISIONED_SUCCESSFULLY")
             setFormData({ username: '', email: '', password: '', role: 'standard' })
             fetchUsers()
-        } catch (err: any) {
-            setError(err.message || "Failed to provision user")
+        } catch (err: unknown) {
+            if (isApiError(err) && err.status === 403) {
+                setError(FORBIDDEN_MESSAGE)
+            } else {
+                setError(err instanceof Error ? err.message : 'Failed to provision user')
+            }
         } finally {
             setIsProvisioning(false)
         }
@@ -64,14 +78,20 @@ export default function UsersPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">Identity and Clearance Level Management.</p>
                 </div>
-                <CyberButton variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+                <CyberButton variant="secondary" size="sm" onClick={fetchUsers} disabled={loading}>
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     <span className="ml-2">REFRESH_DB</span>
                 </CyberButton>
             </div>
 
+            {error && !isAdmin && (
+                <div className="text-destructive text-xs uppercase tracking-widest font-bold border border-destructive/30 bg-destructive/10 p-3 rounded-sm">
+                    [!] {error}
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                <div className="lg:col-span-2">
+                <div className={isAdmin ? 'lg:col-span-2' : 'lg:col-span-3'}>
                     <CyberPanel glow="orange">
                         <CyberPanelHeader title="ACTIVE_IDENTITIES" />
                         <div className="p-4 overflow-x-auto">
@@ -94,13 +114,13 @@ export default function UsersPage() {
                                             <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">NO_RECORDS_FOUND</td>
                                         </tr>
                                     ) : (
-                                        users.map((user) => (
+                                        users.map((user: User) => (
                                             <tr key={user.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors font-mono">
                                                 <td className="px-4 py-3 text-muted-foreground">#{user.id}</td>
                                                 <td className="px-4 py-3 font-medium text-primary">{user.username}</td>
                                                 <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
                                                 <td className="px-4 py-3 text-right">
-                                                    <CyberBadge variant={user.role === 'admin' ? 'info' : 'default'} size="sm">
+                                                    <CyberBadge variant={user.role === 'admin' ? 'info' : 'default'}>
                                                         <Shield className="w-3 h-3 mr-1 inline-block" />
                                                         {user.role ? user.role.toUpperCase() : 'STANDARD'}
                                                     </CyberBadge>
@@ -114,6 +134,7 @@ export default function UsersPage() {
                     </CyberPanel>
                 </div>
 
+                {isAdmin && (
                 <div className="lg:col-span-1">
                     <CyberPanel glow="mint">
                         <CyberPanelHeader title="PROVISION_USER" />
@@ -122,7 +143,7 @@ export default function UsersPage() {
                                 label="Username"
                                 placeholder="e.g. sysadmin_01"
                                 value={formData.username}
-                                onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, username: e.target.value })}
                                 required
                             />
                             <CyberInput
@@ -130,7 +151,7 @@ export default function UsersPage() {
                                 type="email"
                                 placeholder="e.g. admin@openward.net"
                                 value={formData.email}
-                                onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
                                 required
                             />
                             <CyberInput
@@ -138,7 +159,7 @@ export default function UsersPage() {
                                 type="password"
                                 placeholder="••••••••"
                                 value={formData.password}
-                                onChange={(e: any) => setFormData({ ...formData, password: e.target.value })}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, password: e.target.value })}
                                 required
                             />
                             <CyberSelect
@@ -148,7 +169,7 @@ export default function UsersPage() {
                                     { value: 'admin', label: 'ADMIN' },
                                 ]}
                                 value={formData.role}
-                                onChange={(e: any) => setFormData({ ...formData, role: e.target.value })}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, role: e.target.value })}
                             />
 
                             {error && (
@@ -172,6 +193,7 @@ export default function UsersPage() {
                         </form>
                     </CyberPanel>
                 </div>
+                )}
             </div>
         </motion.div>
     )
