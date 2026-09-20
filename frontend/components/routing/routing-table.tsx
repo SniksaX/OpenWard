@@ -1,24 +1,11 @@
 'use client'
 
 import { StatusDot, CyberBadge, CyberProgress } from '@/components/cyber'
-import { cn } from '@/lib/utils'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import type { MappedPeer } from '@/lib/types'
 
-export interface PeerData {
-  id: string
-  identifier: string
-  ip: string
-  publicKey?: string // Made optional
-  pubKey?: string    // Added to match your API mapper
-  role: 'admin' | 'employee' | 'guest'
-  device: string
-  status: 'online' | 'warning' | 'offline' | 'idle'
-  rxTraffic: number
-  txTraffic: number
-  lastSeen: string
-  operatorId: string
-}
+export type PeerData = MappedPeer
 
 interface PeerTableRowProps {
   peer: PeerData
@@ -115,12 +102,12 @@ interface RoutingTableProps {
 }
 
 export function RoutingTable({ peers }: RoutingTableProps) {
-  // Group peers by operator
   const grouped = peers.reduce((acc, peer) => {
-    if (!acc[peer.operatorId]) {
-      acc[peer.operatorId] = []
+    const key = peer.operatorId ?? 'UNCLAIMED'
+    if (!acc[key]) {
+      acc[key] = []
     }
-    acc[peer.operatorId].push(peer)
+    acc[key].push(peer)
     return acc
   }, {} as Record<string, PeerData[]>)
 
